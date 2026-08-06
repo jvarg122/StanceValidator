@@ -4,7 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.classify import classify_topic
 from app.db import get_db
-from app.models import Stance, Topic
+from app.decompose import decompose_claim
+from app.models import Stance, SubClaim, Topic
 
 app = FastAPI()
 
@@ -38,7 +39,18 @@ def create_stance(stance: StanceIn, db: Session = Depends(get_db)):
     db.add(new_stance)
     db.commit()
     db.refresh(new_stance)
-    return {"id": new_stance.id, "text": new_stance.raw_text, "topic_id": new_stance.topic_id}
+
+    sub_claim_texts = decompose_claim(stance.text)
+    for text in sub_claim_texts:
+        db.add(SubClaim(stance_id=new_stance.id, text=text))
+    db.commit()
+
+    return {
+        "id": new_stance.id,
+        "text": new_stance.raw_text,
+        "topic_id": new_stance.topic_id,
+        "sub_claims": sub_claim_texts,
+    }
 
 
 @app.get("/stances")
