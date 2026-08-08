@@ -81,3 +81,27 @@ def create_stance(stance: StanceIn, db: Session = Depends(get_db)):
 def get_stances(db: Session = Depends(get_db)):
     stances = db.query(Stance).all()
     return [{"id": s.id, "text": s.raw_text} for s in stances]
+
+
+@app.get("/stances/{stance_id}")
+def get_stance(stance_id: int, db: Session = Depends(get_db)):
+    stance = db.query(Stance).filter(Stance.id == stance_id).first()
+
+    sub_claims = db.query(SubClaim).filter(SubClaim.stance_id == stance_id).all()
+    result = []
+    for sc in sub_claims:
+        evidence = db.query(Evidence).filter(Evidence.sub_claim_id == sc.id).all()
+        evidence_list = []
+        for e in evidence:
+            source = db.query(Source).filter(Source.id == e.source_id).first()
+            evidence_list.append(
+                {"url": source.url, "relation": e.relation, "summary": e.summary}
+            )
+        result.append({"text": sc.text, "evidence": evidence_list})
+
+    return {
+        "id": stance.id,
+        "text": stance.raw_text,
+        "topic_id": stance.topic_id,
+        "sub_claims": result,
+    }
