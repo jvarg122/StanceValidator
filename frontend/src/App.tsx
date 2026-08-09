@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import SubClaimCard from './components/SubClaimCard'
 import './App.css'
 
 function App() {
@@ -14,7 +15,7 @@ function App() {
     setResult(null)
 
     try {
-      const res = await fetch('http://localhost:8000/stances', {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/stances`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -34,37 +35,31 @@ function App() {
   }
 
   return (
-    <div>
+    <div className="page">
       <h1>Stance Validator</h1>
-      <form onSubmit={handleSubmit}>
+      <form className="stance-form" onSubmit={handleSubmit}>
         <input
           type="text"
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Enter a stance you hold..."
         />
-        <button type="submit">Submit</button>
+        <button type="submit" disabled={loading}>
+          {loading ? 'Working...' : 'Submit'}
+        </button>
       </form>
 
-      {loading && <p>Loading...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
+      {error && <p className="error">{error}</p>}
 
       {result && (
-        <div>
+        <div className="digest">
           <h2>{result.text}</h2>
+          <p className={`overall overall-${result.overall_lean}`}>
+            {result.overall_lean.replaceAll('_', ' ')}
+          </p>
+
           {result.sub_claims.map((sc: any, i: number) => (
-            <div key={i}>
-              <h3>{sc.text}</h3>
-              <p>Strength: {sc.strength}</p>
-              <ul>
-                {sc.evidence.map((e: any, j: number) => (
-                  <li key={j}>
-                    <strong>{e.relation}</strong>: {e.summary} (
-                    <a href={e.url}>{e.url}</a>)
-                  </li>
-                ))}
-              </ul>
-            </div>
+            <SubClaimCard key={i} subClaim={sc} />
           ))}
         </div>
       )}
