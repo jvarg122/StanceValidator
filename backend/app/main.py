@@ -1,9 +1,13 @@
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
 from app.classify import classify_topic
+from app.critique import needs_more_evidence
 from app.db import get_db
 from app.decompose import decompose_claim
 from app.models import Evidence, Source, Stance, SubClaim, Topic
@@ -17,6 +21,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 class StanceIn(BaseModel):
@@ -58,7 +66,8 @@ def get_topics(db: Session = Depends(get_db)):
 
 
 @app.post("/stances")
-def create_stance(stance: StanceIn, db: Session = Depends(get_db)):
+@limiter.limit("5/hour")
+def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
     matched_name = classify_topic(stance.text, topic_names)
@@ -79,8 +88,13 @@ def create_stance(stance: StanceIn, db: Session = Depends(get_db)):
 
     result = []
     for sub_claim in sub_claims:
+        found = find_evidence(sub_claim.text)
+        if needs_more_evidence(sub_claim.text, found):
+            more = find_evidence(sub_claim.text)
+            found = found + [item for item in more if item not in found]
+
         evidence_list = []
-        for item in find_evidence(sub_claim.text):
+        for item in found:
             source = db.query(Source).filter(Source.url == item["url"]).first()
             if not source:
                 source = Source(url=item["url"])
@@ -137,11 +151,20 @@ def get_stance(stance_id: int, db: Session = Depends(get_db)):
             evidence_list.append(
                 {"url": source.url, "relation": e.relation, "summary": e.summary}
             )
-        result.append({"text": sc.text, "evidence": evidence_list})
+        result.append(
+            {
+                "text": sc.text,
+                "evidence": evidence_list,
+                "strength": compute_strength(evidence_list),
+            }
+        )
+
+    overall_lean = compute_overall_lean([sc["strength"] for sc in result])
 
     return {
         "id": stance.id,
         "text": stance.raw_text,
         "topic_id": stance.topic_id,
         "sub_claims": result,
+        "overall_lean": overall_lean,
     }
