@@ -23,6 +23,29 @@ class StanceIn(BaseModel):
     text: str
 
 
+def compute_strength(evidence_list):
+    supports = sum(1 for e in evidence_list if e["relation"] == "supports")
+    conflicts = sum(1 for e in evidence_list if e["relation"] == "conflicts")
+
+    if supports == 0 and conflicts == 0:
+        return "insufficient evidence"
+    if supports > conflicts:
+        return "supported"
+    if conflicts > supports:
+        return "disputed"
+    return "mixed"
+
+
+def compute_overall_lean(strengths):
+    if all(s == "insufficient evidence" for s in strengths):
+        return "insufficient_evidence"
+    if all(s == "supported" for s in strengths):
+        return "well_supported"
+    if "disputed" in strengths and "supported" in strengths:
+        return "contested"
+    return "weakly_supported"
+
+
 @app.get("/status")
 def health_check():
     return {"status": "ok"}
@@ -75,13 +98,22 @@ def create_stance(stance: StanceIn, db: Session = Depends(get_db)):
             )
             evidence_list.append(item)
         db.commit()
-        result.append({"text": sub_claim.text, "evidence": evidence_list})
+        result.append(
+            {
+                "text": sub_claim.text,
+                "evidence": evidence_list,
+                "strength": compute_strength(evidence_list),
+            }
+        )
+
+    overall_lean = compute_overall_lean([sc["strength"] for sc in result])
 
     return {
         "id": new_stance.id,
         "text": new_stance.raw_text,
         "topic_id": new_stance.topic_id,
         "sub_claims": result,
+        "overall_lean": overall_lean,
     }
 
 

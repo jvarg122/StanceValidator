@@ -3,22 +3,34 @@ import './App.css'
 
 function App() {
   const [text, setText] = useState('')
-  const [result, setResult] = useState(null)
+  const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
+    setError('')
+    setResult(null)
 
-    const res = await fetch('http://localhost:8000/stances', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text }),
-    })
-    const data = await res.json()
+    try {
+      const res = await fetch('http://localhost:8000/stances', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text }),
+      })
 
-    setResult(data)
-    setLoading(false)
+      if (!res.ok) {
+        throw new Error('Something went wrong.')
+      }
+
+      const data = await res.json()
+      setResult(data)
+    } catch (err) {
+      setError('Could not reach the server. Is the backend running?')
+    } finally {
+      setLoading(false)
+    }
   }
 
   return (
@@ -35,7 +47,27 @@ function App() {
       </form>
 
       {loading && <p>Loading...</p>}
-      {result && <pre>{JSON.stringify(result, null, 2)}</pre>}
+      {error && <p style={{ color: 'red' }}>{error}</p>}
+
+      {result && (
+        <div>
+          <h2>{result.text}</h2>
+          {result.sub_claims.map((sc: any, i: number) => (
+            <div key={i}>
+              <h3>{sc.text}</h3>
+              <p>Strength: {sc.strength}</p>
+              <ul>
+                {sc.evidence.map((e: any, j: number) => (
+                  <li key={j}>
+                    <strong>{e.relation}</strong>: {e.summary} (
+                    <a href={e.url}>{e.url}</a>)
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   )
 }
