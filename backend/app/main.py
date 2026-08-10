@@ -6,12 +6,14 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
 
+from app.academic import search_semantic_scholar
 from app.classify import classify_topic
 from app.critique import needs_more_evidence
 from app.db import get_db
 from app.decompose import decompose_claim
 from app.models import Evidence, Source, Stance, SubClaim, Topic
 from app.retrieve import find_evidence
+from app.reuse import find_similar_subclaim
 
 app = FastAPI()
 
@@ -88,10 +90,20 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
 
     result = []
     for sub_claim in sub_claims:
-        found = find_evidence(sub_claim.text)
-        if needs_more_evidence(sub_claim.text, found):
-            more = find_evidence(sub_claim.text)
-            found = found + [item for item in more if item not in found]
+        similar = None
+        if new_stance.topic_id:
+            similar = find_similar_subclaim(db, new_stance.topic_id, sub_claim.text)
+
+        if similar:
+            found = []
+            for e in db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all():
+                source = db.query(Source).filter(Source.id == e.source_id).first()
+                found.append({"url": source.url, "relation": e.relation, "summary": e.summary})
+        else:
+            found = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
+            if needs_more_evidence(sub_claim.text, found):
+                more = find_evidence(sub_claim.text)
+                found = found + [item for item in more if item not in found]
 
         evidence_list = []
         for item in found:
@@ -117,6 +129,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                 "text": sub_claim.text,
                 "evidence": evidence_list,
                 "strength": compute_strength(evidence_list),
+                "reused": similar is not None,
             }
         )
 
