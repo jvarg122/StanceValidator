@@ -12,7 +12,10 @@ function SubClaimCard({ subClaim }: { subClaim: any }) {
             <strong>{e.relation}</strong>: {e.summary}{' '}
             <a href={e.url} target="_blank" rel="noreferrer">
               source
-            </a>
+            </a>{' '}
+            <span className="credibility" title="Credibility score">
+              {Math.round(e.credibility_score * 100)}%
+            </span>
           </li>
         ))}
       </ul>

@@ -69,6 +69,7 @@ function App() {
       {result && (
         <div className="digest">
           <h2>{result.text}</h2>
+          {result.topic_name && <p className="topic-name">Topic: {result.topic_name}</p>}
           <p className={`overall overall-${result.overall_lean}`}>
             {result.overall_lean.replaceAll('_', ' ')}
           </p>
