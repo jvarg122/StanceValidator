@@ -6,3 +6,4 @@ pydantic-settings
 anthropic
 slowapi
 requests
+pytest

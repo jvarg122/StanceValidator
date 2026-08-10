@@ -1,4 +1,4 @@
-from sqlalchemy import ForeignKey, String, Text
+from sqlalchemy import Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -42,3 +42,4 @@ class Evidence(Base):
     source_id: Mapped[int] = mapped_column(ForeignKey("sources.id"))
     relation: Mapped[str] = mapped_column(String(20))
     summary: Mapped[str] = mapped_column(Text)
+    credibility_score: Mapped[float] = mapped_column(Float, default=0.4)

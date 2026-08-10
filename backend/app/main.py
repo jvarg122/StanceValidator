@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.academic import search_semantic_scholar
 from app.classify import classify_topic
+from app.credibility import score_source
 from app.critique import needs_more_evidence
 from app.db import get_db
 from app.decompose import decompose_claim
@@ -98,7 +99,14 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
             found = []
             for e in db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all():
                 source = db.query(Source).filter(Source.id == e.source_id).first()
-                found.append({"url": source.url, "relation": e.relation, "summary": e.summary})
+                found.append(
+                    {
+                        "url": source.url,
+                        "relation": e.relation,
+                        "summary": e.summary,
+                        "credibility_score": e.credibility_score,
+                    }
+                )
         else:
             found = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
             if needs_more_evidence(sub_claim.text, found):
@@ -114,15 +122,18 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                 db.commit()
                 db.refresh(source)
 
+            credibility_score = item.get("credibility_score", score_source(item["url"]))
+
             db.add(
                 Evidence(
                     sub_claim_id=sub_claim.id,
                     source_id=source.id,
                     relation=item["relation"],
                     summary=item["summary"],
+                    credibility_score=credibility_score,
                 )
             )
-            evidence_list.append(item)
+            evidence_list.append({**item, "credibility_score": credibility_score})
         db.commit()
         result.append(
             {
@@ -139,6 +150,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
         "id": new_stance.id,
         "text": new_stance.raw_text,
         "topic_id": new_stance.topic_id,
+        "topic_name": matched_topic.name if matched_topic else None,
         "sub_claims": result,
         "overall_lean": overall_lean,
     }
@@ -153,6 +165,7 @@ def get_stances(db: Session = Depends(get_db)):
 @app.get("/stances/{stance_id}")
 def get_stance(stance_id: int, db: Session = Depends(get_db)):
     stance = db.query(Stance).filter(Stance.id == stance_id).first()
+    topic = db.query(Topic).filter(Topic.id == stance.topic_id).first() if stance.topic_id else None
 
     sub_claims = db.query(SubClaim).filter(SubClaim.stance_id == stance_id).all()
     result = []
@@ -162,7 +175,12 @@ def get_stance(stance_id: int, db: Session = Depends(get_db)):
         for e in evidence:
             source = db.query(Source).filter(Source.id == e.source_id).first()
             evidence_list.append(
-                {"url": source.url, "relation": e.relation, "summary": e.summary}
+                {
+                    "url": source.url,
+                    "relation": e.relation,
+                    "summary": e.summary,
+                    "credibility_score": e.credibility_score,
+                }
             )
         result.append(
             {
@@ -178,6 +196,7 @@ def get_stance(stance_id: int, db: Session = Depends(get_db)):
         "id": stance.id,
         "text": stance.raw_text,
         "topic_id": stance.topic_id,
+        "topic_name": topic.name if topic else None,
         "sub_claims": result,
         "overall_lean": overall_lean,
     }
