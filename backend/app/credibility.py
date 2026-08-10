@@ -3,11 +3,6 @@ from urllib.parse import urlparse
 HIGH_TRUST_DOMAINS = {".gov", ".edu"}
 ACADEMIC_DOMAINS = {
     "semanticscholar.org",
-    "ncbi.nlm.nih.gov",
-    "doi.org",
-    "nature.com",
-    "sciencedirect.com",
-    "arxiv.org",
 }
 
 
