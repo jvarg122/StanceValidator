@@ -96,3 +96,27 @@
 .evidence-conflicts strong {
   color: #c0392b;
 }
+
+.past-stances {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.reused-badge {
+  font-weight: 400;
+  font-style: italic;
+  text-transform: none;
+  color: var(--text);
+}
+
+.link-button {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+  font-size: 16px;
+  text-align: left;
+}

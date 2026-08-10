@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import SubClaimCard from './components/SubClaimCard'
 import './App.css'
 
@@ -7,6 +7,14 @@ function App() {
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [pastStances, setPastStances] = useState<any[]>([])
+
+  useEffect(() => {
+    fetch(`${import.meta.env.VITE_API_URL}/stances`)
+      .then((res) => res.json())
+      .then(setPastStances)
+      .catch(() => {})
+  }, [result])
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -32,6 +40,13 @@ function App() {
     } finally {
       setLoading(false)
     }
+  }
+
+  async function viewStance(id: number) {
+    setError('')
+    const res = await fetch(`${import.meta.env.VITE_API_URL}/stances/${id}`)
+    const data = await res.json()
+    setResult(data)
   }
 
   return (
@@ -61,6 +76,21 @@ function App() {
           {result.sub_claims.map((sc: any, i: number) => (
             <SubClaimCard key={i} subClaim={sc} />
           ))}
+        </div>
+      )}
+
+      {pastStances.length > 0 && (
+        <div className="past-stances">
+          <h2>Past stances</h2>
+          <ul>
+            {pastStances.map((s: any) => (
+              <li key={s.id}>
+                <button className="link-button" onClick={() => viewStance(s.id)}>
+                  {s.text}
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
     </div>
