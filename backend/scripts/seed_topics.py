@@ -1,15 +1,22 @@
 from app.db import SessionLocal
 from app.models import Topic
 
+TOPICS = [
+    "Energy & Climate",
+    "Health & Medicine",
+    "Technology & AI",
+    "Economics & Labor",
+    "Education",
+    "Public Policy",
+    "Psychology & Behavior",
+]
+
 db = SessionLocal()
 
-db.add(Topic(name="Energy & Climate"))
-db.add(Topic(name="Health & Medicine"))
-db.add(Topic(name="Technology & AI"))
-db.add(Topic(name="Economics & Labor"))
-db.add(Topic(name="Education"))
-db.add(Topic(name="Public Policy"))
-db.add(Topic(name="Psychology & Behavior"))
+existing = {t.name for t in db.query(Topic).all()}
+for name in TOPICS:
+    if name not in existing:
+        db.add(Topic(name=name))
 
 db.commit()
 db.close()
