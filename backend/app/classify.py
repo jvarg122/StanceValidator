@@ -10,10 +10,12 @@ Topics: {", ".join(topic_names)}
 
 Stance: {text}"""
 
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=20,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    return response.content[0].text.strip()
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=20,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip()
+    except Exception:
+        return ""

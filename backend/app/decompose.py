@@ -8,11 +8,13 @@ def decompose_claim(text):
 
 Stance: {text}"""
 
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    lines = response.content[0].text.strip().split("\n")
-    return [line.strip("- ").strip() for line in lines if line.strip()]
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=300,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        lines = response.content[0].text.strip().split("\n")
+        return [line.strip("- ").strip() for line in lines if line.strip()]
+    except Exception:
+        return []

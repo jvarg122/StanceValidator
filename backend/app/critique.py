@@ -18,10 +18,12 @@ Evidence found so far:
 
 Is this evidence one-sided (all supporting or all conflicting, no opposing view) or too thin (only 1 source)? Reply with just "yes" or "no"."""
 
-    response = client.messages.create(
-        model="claude-haiku-4-5",
-        max_tokens=10,
-        messages=[{"role": "user", "content": prompt}],
-    )
-
-    return response.content[0].text.strip().lower().startswith("yes")
+    try:
+        response = client.messages.create(
+            model="claude-haiku-4-5",
+            max_tokens=10,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return response.content[0].text.strip().lower().startswith("yes")
+    except Exception:
+        return False
