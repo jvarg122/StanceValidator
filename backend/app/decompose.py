@@ -1,6 +1,9 @@
 import anthropic
 
+from app.config import get_settings
+
 client = anthropic.Anthropic()
+settings = get_settings()
 
 
 def decompose_claim(text):
@@ -10,7 +13,7 @@ Stance: {text}"""
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5",
+            model=settings.model_name,
             max_tokens=300,
             messages=[{"role": "user", "content": prompt}],
         )
