@@ -1,7 +1,10 @@
 import anthropic
 import requests
 
+from app.config import get_settings
+
 client = anthropic.Anthropic()
+settings = get_settings()
 
 
 def search_semantic_scholar(sub_claim_text, limit=2):
@@ -29,7 +32,7 @@ Does this paper support or conflict with the sub-claim? Reply with just "support
 
         try:
             response = client.messages.create(
-                model="claude-haiku-4-5",
+                model=settings.model_name,
                 max_tokens=10,
                 messages=[{"role": "user", "content": prompt}],
             )

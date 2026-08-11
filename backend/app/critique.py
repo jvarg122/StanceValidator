@@ -1,6 +1,9 @@
 import anthropic
 
+from app.config import get_settings
+
 client = anthropic.Anthropic()
+settings = get_settings()
 
 
 def needs_more_evidence(sub_claim_text, evidence_list):
@@ -20,7 +23,7 @@ Is this evidence one-sided (all supporting or all conflicting, no opposing view)
 
     try:
         response = client.messages.create(
-            model="claude-haiku-4-5",
+            model=settings.model_name,
             max_tokens=10,
             messages=[{"role": "user", "content": prompt}],
         )
