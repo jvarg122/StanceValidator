@@ -1,6 +1,6 @@
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.academic import search_semantic_scholar
 from app.classify import classify_topic
+from app.config import get_settings
 from app.credibility import score_source
 from app.critique import needs_more_evidence
 from app.db import get_db
@@ -16,6 +17,7 @@ from app.models import Evidence, Source, Stance, SubClaim, Topic
 from app.retrieve import find_evidence
 from app.reuse import find_similar_subclaim
 
+settings = get_settings()
 app = FastAPI()
 
 app.add_middleware(
@@ -31,7 +33,7 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 class StanceIn(BaseModel):
-    text: str
+    text: str = Field(min_length=5, max_length=500)
 
 
 def compute_strength(evidence_list):
@@ -69,7 +71,7 @@ def get_topics(db: Session = Depends(get_db)):
 
 
 @app.post("/stances")
-@limiter.limit("5/hour")
+@limiter.limit(settings.rate_limit)
 def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
