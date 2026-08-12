@@ -75,8 +75,8 @@ def get_topics(db: Session = Depends(get_db)):
 def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
-    matched_name = classify_topic(stance.text, topic_names)
-    matched_topic = next((t for t in topics if t.name == matched_name), None)
+    matched_name = classify_topic(stance.text, topic_names).strip().rstrip(".").lower()
+    matched_topic = next((t for t in topics if t.name.lower() == matched_name), None)
 
     new_stance = Stance(
         raw_text=stance.text,
