@@ -24,10 +24,8 @@ URL | supports or conflicts | one sentence summary""",
     except Exception:
         return []
 
-    lines = []
-    for block in response.content:
-        if block.type == "text":
-            lines.extend(block.text.strip().split("\n"))
+    full_text = "".join(block.text for block in response.content if block.type == "text")
+    lines = full_text.strip().split("\n")
 
     results = []
     for line in lines:
