@@ -22,24 +22,31 @@ function App() {
     setError('')
     setResult(null)
 
+    let res: Response
     try {
-      const res = await fetch(`${import.meta.env.VITE_API_URL}/stances`, {
+      res = await fetch(`${import.meta.env.VITE_API_URL}/stances`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
       })
-
-      if (!res.ok) {
-        throw new Error('Something went wrong.')
-      }
-
-      const data = await res.json()
-      setResult(data)
     } catch (err) {
       setError('Could not reach the server. Is the backend running?')
-    } finally {
       setLoading(false)
+      return
     }
+
+    if (res.status === 429) {
+      setError("You've hit the submission limit. Try again in a bit.")
+    } else if (res.status === 422) {
+      setError('Stance must be between 5 and 500 characters.')
+    } else if (!res.ok) {
+      setError('Something went wrong.')
+    } else {
+      const data = await res.json()
+      setResult(data)
+    }
+
+    setLoading(false)
   }
 
   async function viewStance(id: number) {
@@ -58,6 +65,9 @@ function App() {
           value={text}
           onChange={(e) => setText(e.target.value)}
           placeholder="Enter a stance you hold..."
+          minLength={5}
+          maxLength={500}
+          required
         />
         <button type="submit" disabled={loading}>
           {loading ? 'Working...' : 'Submit'}
