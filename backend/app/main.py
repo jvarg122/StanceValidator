@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -16,6 +18,9 @@ from app.decompose import decompose_claim
 from app.models import Evidence, Source, Stance, SubClaim, Topic
 from app.retrieve import find_evidence
 from app.reuse import find_similar_subclaim
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("stance_tool")
 
 settings = get_settings()
 app = FastAPI()
@@ -49,6 +54,21 @@ def compute_strength(evidence_list):
     return "mixed"
 
 
+def match_topic(raw_name, topics):
+    normalized = raw_name.strip().rstrip(".").lower()
+    return next((t for t in topics if t.name.lower() == normalized), None)
+
+
+def evidence_row_to_dict(db, evidence_row):
+    source = db.query(Source).filter(Source.id == evidence_row.source_id).first()
+    return {
+        "url": source.url,
+        "relation": evidence_row.relation,
+        "summary": evidence_row.summary,
+        "credibility_score": evidence_row.credibility_score,
+    }
+
+
 def compute_overall_lean(strengths):
     if all(s == "insufficient evidence" for s in strengths):
         return "insufficient_evidence"
@@ -75,8 +95,9 @@ def get_topics(db: Session = Depends(get_db)):
 def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
-    matched_name = classify_topic(stance.text, topic_names).strip().rstrip(".").lower()
-    matched_topic = next((t for t in topics if t.name.lower() == matched_name), None)
+    raw_name = classify_topic(stance.text, topic_names)
+    matched_topic = match_topic(raw_name, topics)
+    logger.info("classify_topic -> %r matched %s", raw_name, matched_topic.name if matched_topic else None)
 
     new_stance = Stance(
         raw_text=stance.text,
@@ -87,6 +108,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
     db.refresh(new_stance)
 
     sub_claim_texts = decompose_claim(stance.text)
+    logger.info("decompose_claim -> %d sub-claims", len(sub_claim_texts))
     sub_claims = [SubClaim(stance_id=new_stance.id, text=text) for text in sub_claim_texts]
     db.add_all(sub_claims)
     db.commit()
@@ -98,22 +120,14 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
             similar = find_similar_subclaim(db, new_stance.topic_id, sub_claim.text)
 
         if similar:
-            found = []
-            for e in db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all():
-                source = db.query(Source).filter(Source.id == e.source_id).first()
-                found.append(
-                    {
-                        "url": source.url,
-                        "relation": e.relation,
-                        "summary": e.summary,
-                        "credibility_score": e.credibility_score,
-                    }
-                )
+            existing = db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all()
+            found = [evidence_row_to_dict(db, e) for e in existing]
         else:
             found = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
             if needs_more_evidence(sub_claim.text, found):
                 more = find_evidence(sub_claim.text)
                 found = found + [item for item in more if item not in found]
+            logger.info("evidence for %r -> %d items", sub_claim.text[:50], len(found))
 
         evidence_list = []
         for item in found:
@@ -173,17 +187,7 @@ def get_stance(stance_id: int, db: Session = Depends(get_db)):
     result = []
     for sc in sub_claims:
         evidence = db.query(Evidence).filter(Evidence.sub_claim_id == sc.id).all()
-        evidence_list = []
-        for e in evidence:
-            source = db.query(Source).filter(Source.id == e.source_id).first()
-            evidence_list.append(
-                {
-                    "url": source.url,
-                    "relation": e.relation,
-                    "summary": e.summary,
-                    "credibility_score": e.credibility_score,
-                }
-            )
+        evidence_list = [evidence_row_to_dict(db, e) for e in evidence]
         result.append(
             {
                 "text": sc.text,
