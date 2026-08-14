@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     database_url: str
     model_name: str = "claude-haiku-4-5"
     rate_limit: str = "5/hour"
+    max_critique_iterations: int = 3
 
 @lru_cache
 def get_settings() -> Settings:

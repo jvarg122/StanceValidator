@@ -66,6 +66,7 @@ def evidence_row_to_dict(db, evidence_row):
         "relation": evidence_row.relation,
         "summary": evidence_row.summary,
         "credibility_score": evidence_row.credibility_score,
+        "supporting_quote": evidence_row.supporting_quote,
     }
 
 
@@ -124,10 +125,23 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
             found = [evidence_row_to_dict(db, e) for e in existing]
         else:
             found = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
-            if needs_more_evidence(sub_claim.text, found):
-                more = find_evidence(sub_claim.text)
-                found = found + [item for item in more if item not in found]
-            logger.info("evidence for %r -> %d items", sub_claim.text[:50], len(found))
+            iterations = 0
+            while (
+                needs_more_evidence(sub_claim.text, found)
+                and iterations < settings.max_critique_iterations
+            ):
+                more = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
+                new_items = [item for item in more if item not in found]
+                if not new_items:
+                    break
+                found = found + new_items
+                iterations += 1
+            logger.info(
+                "evidence for %r -> %d items after %d critique iterations",
+                sub_claim.text[:50],
+                len(found),
+                iterations,
+            )
 
         evidence_list = []
         for item in found:
@@ -147,6 +161,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                     relation=item["relation"],
                     summary=item["summary"],
                     credibility_score=credibility_score,
+                    supporting_quote=item.get("supporting_quote"),
                 )
             )
             evidence_list.append({**item, "credibility_score": credibility_score})
