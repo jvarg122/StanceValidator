@@ -123,6 +123,16 @@
   margin-bottom: 8px;
 }
 
+.quote {
+  margin: 4px 0 0 0;
+  padding-left: 10px;
+  border-left: 2px solid var(--border);
+  font-size: 13px;
+  font-style: italic;
+  color: var(--text);
+  opacity: 0.85;
+}
+
 .link-button {
   background: none;
   border: none;
