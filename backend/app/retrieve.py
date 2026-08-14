@@ -17,7 +17,7 @@ def find_evidence(sub_claim_text):
                     "content": f"""Search the web for evidence about this claim: "{sub_claim_text}"
 
 Find 2-3 sources. For each one, reply on its own line in this exact format:
-URL | supports or conflicts | one sentence summary""",
+URL | supports or conflicts | one sentence summary | a short direct quote from the source backing the summary""",
                 }
             ],
         )
@@ -29,7 +29,14 @@ URL | supports or conflicts | one sentence summary""",
 
     results = []
     for line in lines:
-        parts = [p.strip() for p in line.split("|")]
-        if len(parts) == 3:
-            results.append({"url": parts[0], "relation": parts[1], "summary": parts[2]})
+        parts = [p.strip() for p in line.split("|", 3)]
+        if len(parts) == 4 and parts[3]:
+            results.append(
+                {
+                    "url": parts[0],
+                    "relation": parts[1],
+                    "summary": parts[2],
+                    "supporting_quote": parts[3],
+                }
+            )
     return results
