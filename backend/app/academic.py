@@ -43,6 +43,16 @@ Does this paper support or conflict with the sub-claim? Reply with just "support
         if relation not in ("supports", "conflicts"):
             continue
 
-        results.append({"url": paper["url"], "relation": relation, "summary": paper["title"]})
+        abstract = paper["abstract"]
+        quote = abstract[:300] + "..." if len(abstract) > 300 else abstract
+
+        results.append(
+            {
+                "url": paper["url"],
+                "relation": relation,
+                "summary": paper["title"],
+                "supporting_quote": quote,
+            }
+        )
 
     return results
