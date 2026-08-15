@@ -1,4 +1,4 @@
-from sqlalchemy import Float, ForeignKey, String, Text
+from sqlalchemy import JSON, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -9,6 +9,7 @@ class Topic(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     name: Mapped[str] = mapped_column(String(128))
+    trusted_domains: Mapped[list[str]] = mapped_column(JSON, default=list)
 
 
 class Stance(Base):
@@ -16,6 +17,7 @@ class Stance(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     raw_text: Mapped[str] = mapped_column(Text)
+    normalized_text: Mapped[str] = mapped_column(String(500), index=True)
     topic_id: Mapped[int | None] = mapped_column(ForeignKey("topics.id"), nullable=True)
 
 

@@ -5,12 +5,16 @@ from app.config import get_settings
 client = anthropic.Anthropic()
 settings = get_settings()
 
-def find_evidence(sub_claim_text):
+def find_evidence(sub_claim_text, allowed_domains=None):
+    web_search_tool = {"type": "web_search_20250305", "name": "web_search", "max_uses": 3}
+    if allowed_domains:
+        web_search_tool["allowed_domains"] = allowed_domains
+
     try:
         response = client.messages.create(
             model=settings.model_name,
             max_tokens=1000,
-            tools=[{"type": "web_search_20250305", "name": "web_search", "max_uses": 3}],
+            tools=[web_search_tool],
             messages=[
                 {
                     "role": "user",
