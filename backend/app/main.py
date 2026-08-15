@@ -1,5 +1,4 @@
 import logging
-
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -7,7 +6,6 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 from sqlalchemy.orm import Session
-
 from app.academic import search_semantic_scholar
 from app.classify import classify_topic
 from app.config import get_settings
@@ -27,7 +25,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173"],
+    allow_origins=settings.allowed_origins_list,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -59,6 +57,10 @@ def match_topic(raw_name, topics):
     return next((t for t in topics if t.name.lower() == normalized), None)
 
 
+def normalize_text(text):
+    return " ".join(text.strip().lower().split())
+
+
 def evidence_row_to_dict(db, evidence_row):
     source = db.query(Source).filter(Source.id == evidence_row.source_id).first()
     return {
@@ -80,6 +82,34 @@ def compute_overall_lean(strengths):
     return "weakly_supported"
 
 
+def build_digest(db, stance):
+    topic = db.query(Topic).filter(Topic.id == stance.topic_id).first() if stance.topic_id else None
+
+    sub_claims = db.query(SubClaim).filter(SubClaim.stance_id == stance.id).all()
+    result = []
+    for sc in sub_claims:
+        evidence = db.query(Evidence).filter(Evidence.sub_claim_id == sc.id).all()
+        evidence_list = [evidence_row_to_dict(db, e) for e in evidence]
+        result.append(
+            {
+                "text": sc.text,
+                "evidence": evidence_list,
+                "strength": compute_strength(evidence_list),
+            }
+        )
+
+    overall_lean = compute_overall_lean([sc["strength"] for sc in result])
+
+    return {
+        "id": stance.id,
+        "text": stance.raw_text,
+        "topic_id": stance.topic_id,
+        "topic_name": topic.name if topic else None,
+        "sub_claims": result,
+        "overall_lean": overall_lean,
+    }
+
+
 @app.get("/status")
 def health_check():
     return {"status": "ok"}
@@ -94,6 +124,12 @@ def get_topics(db: Session = Depends(get_db)):
 @app.post("/stances")
 @limiter.limit(settings.rate_limit)
 def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
+    normalized = normalize_text(stance.text)
+    duplicate = db.query(Stance).filter(Stance.normalized_text == normalized).first()
+    if duplicate:
+        logger.info("duplicate stance -> reusing stance %d", duplicate.id)
+        return build_digest(db, duplicate)
+
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
     raw_name = classify_topic(stance.text, topic_names)
@@ -102,6 +138,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
 
     new_stance = Stance(
         raw_text=stance.text,
+        normalized_text=normalized,
         topic_id=matched_topic.id if matched_topic else None,
     )
     db.add(new_stance)
@@ -124,13 +161,14 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
             existing = db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all()
             found = [evidence_row_to_dict(db, e) for e in existing]
         else:
-            found = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
+            domains = matched_topic.trusted_domains if matched_topic else None
+            found = find_evidence(sub_claim.text, domains) + search_semantic_scholar(sub_claim.text)
             iterations = 0
             while (
                 needs_more_evidence(sub_claim.text, found)
                 and iterations < settings.max_critique_iterations
             ):
-                more = find_evidence(sub_claim.text) + search_semantic_scholar(sub_claim.text)
+                more = find_evidence(sub_claim.text, domains) + search_semantic_scholar(sub_claim.text)
                 new_items = [item for item in more if item not in found]
                 if not new_items:
                     break
@@ -196,28 +234,4 @@ def get_stances(db: Session = Depends(get_db)):
 @app.get("/stances/{stance_id}")
 def get_stance(stance_id: int, db: Session = Depends(get_db)):
     stance = db.query(Stance).filter(Stance.id == stance_id).first()
-    topic = db.query(Topic).filter(Topic.id == stance.topic_id).first() if stance.topic_id else None
-
-    sub_claims = db.query(SubClaim).filter(SubClaim.stance_id == stance_id).all()
-    result = []
-    for sc in sub_claims:
-        evidence = db.query(Evidence).filter(Evidence.sub_claim_id == sc.id).all()
-        evidence_list = [evidence_row_to_dict(db, e) for e in evidence]
-        result.append(
-            {
-                "text": sc.text,
-                "evidence": evidence_list,
-                "strength": compute_strength(evidence_list),
-            }
-        )
-
-    overall_lean = compute_overall_lean([sc["strength"] for sc in result])
-
-    return {
-        "id": stance.id,
-        "text": stance.raw_text,
-        "topic_id": stance.topic_id,
-        "topic_name": topic.name if topic else None,
-        "sub_claims": result,
-        "overall_lean": overall_lean,
-    }
+    return build_digest(db, stance)
