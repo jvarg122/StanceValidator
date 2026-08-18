@@ -34,13 +34,23 @@ URL | supports or conflicts | one sentence summary | a short direct quote from t
     results = []
     for line in lines:
         parts = [p.strip() for p in line.split("|", 3)]
-        if len(parts) == 4 and parts[3]:
-            results.append(
-                {
-                    "url": parts[0],
-                    "relation": parts[1],
-                    "summary": parts[2],
-                    "supporting_quote": parts[3],
-                }
-            )
+        if len(parts) != 4 or not parts[3]:
+            continue
+
+        relation_raw = parts[1].strip("* ").lower()
+        if "conflict" in relation_raw:
+            relation = "conflicts"
+        elif "support" in relation_raw:
+            relation = "supports"
+        else:
+            continue
+
+        results.append(
+            {
+                "url": parts[0],
+                "relation": relation,
+                "summary": parts[2],
+                "supporting_quote": parts[3],
+            }
+        )
     return results

@@ -1,4 +1,6 @@
 import logging
+from urllib.parse import urlparse
+
 from fastapi import Depends, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -9,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.academic import search_semantic_scholar
 from app.classify import classify_topic
 from app.config import get_settings
-from app.credibility import score_source
+from app.credibility import classify_source_type, score_source
 from app.critique import needs_more_evidence
 from app.db import get_db
 from app.decompose import decompose_claim
@@ -69,6 +71,7 @@ def evidence_row_to_dict(db, evidence_row):
         "summary": evidence_row.summary,
         "credibility_score": evidence_row.credibility_score,
         "supporting_quote": evidence_row.supporting_quote,
+        "source_type": evidence_row.source_type,
     }
 
 
@@ -83,6 +86,18 @@ def compute_overall_lean(strengths):
 
 
 def build_digest(db, stance):
+    if stance.status == "out_of_scope":
+        return {
+            "id": stance.id,
+            "text": stance.raw_text,
+            "status": "out_of_scope",
+            "out_of_scope_reason": stance.out_of_scope_reason,
+            "topic_id": None,
+            "topic_name": None,
+            "sub_claims": [],
+            "overall_lean": None,
+        }
+
     topic = db.query(Topic).filter(Topic.id == stance.topic_id).first() if stance.topic_id else None
 
     sub_claims = db.query(SubClaim).filter(SubClaim.stance_id == stance.id).all()
@@ -103,6 +118,7 @@ def build_digest(db, stance):
     return {
         "id": stance.id,
         "text": stance.raw_text,
+        "status": "complete",
         "topic_id": stance.topic_id,
         "topic_name": topic.name if topic else None,
         "sub_claims": result,
@@ -136,10 +152,27 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
     matched_topic = match_topic(raw_name, topics)
     logger.info("classify_topic -> %r matched %s", raw_name, matched_topic.name if matched_topic else None)
 
+    if not matched_topic:
+        new_stance = Stance(
+            raw_text=stance.text,
+            normalized_text=normalized,
+            topic_id=None,
+            status="out_of_scope",
+            out_of_scope_reason=(
+                f"This stance doesn't clearly fit any topic we cover yet. "
+                f"Topics we cover: {', '.join(topic_names)}."
+            ),
+        )
+        db.add(new_stance)
+        db.commit()
+        db.refresh(new_stance)
+        logger.info("stance %d out of scope, skipping pipeline", new_stance.id)
+        return build_digest(db, new_stance)
+
     new_stance = Stance(
         raw_text=stance.text,
         normalized_text=normalized,
-        topic_id=matched_topic.id if matched_topic else None,
+        topic_id=matched_topic.id,
     )
     db.add(new_stance)
     db.commit()
@@ -155,13 +188,15 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
     for sub_claim in sub_claims:
         similar = None
         if new_stance.topic_id:
-            similar = find_similar_subclaim(db, new_stance.topic_id, sub_claim.text)
+            similar = find_similar_subclaim(
+                db, new_stance.topic_id, sub_claim.text, exclude_stance_id=new_stance.id
+            )
 
         if similar:
             existing = db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all()
             found = [evidence_row_to_dict(db, e) for e in existing]
         else:
-            domains = matched_topic.trusted_domains if matched_topic else None
+            domains = matched_topic.trusted_domains
             found = find_evidence(sub_claim.text, domains) + search_semantic_scholar(sub_claim.text)
             iterations = 0
             while (
@@ -185,12 +220,13 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
         for item in found:
             source = db.query(Source).filter(Source.url == item["url"]).first()
             if not source:
-                source = Source(url=item["url"])
+                source = Source(url=item["url"], domain=urlparse(item["url"]).netloc.lower())
                 db.add(source)
                 db.commit()
                 db.refresh(source)
 
             credibility_score = item.get("credibility_score", score_source(item["url"]))
+            source_type = item.get("source_type", classify_source_type(item["url"]))
 
             db.add(
                 Evidence(
@@ -200,9 +236,12 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                     summary=item["summary"],
                     credibility_score=credibility_score,
                     supporting_quote=item.get("supporting_quote"),
+                    source_type=source_type,
                 )
             )
-            evidence_list.append({**item, "credibility_score": credibility_score})
+            evidence_list.append(
+                {**item, "credibility_score": credibility_score, "source_type": source_type}
+            )
         db.commit()
         result.append(
             {
