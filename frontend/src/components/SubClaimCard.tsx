@@ -15,7 +15,8 @@ function SubClaimCard({ subClaim }: { subClaim: any }) {
             </a>{' '}
             <span className="credibility" title="Credibility score">
               {Math.round(e.credibility_score * 100)}%
-            </span>
+            </span>{' '}
+            <span className={`source-type source-type-${e.source_type}`}>{e.source_type}</span>
             {e.supporting_quote && <blockquote className="quote">"{e.supporting_quote}"</blockquote>}
           </li>
         ))}

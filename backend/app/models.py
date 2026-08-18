@@ -1,4 +1,6 @@
-from sqlalchemy import JSON, Float, ForeignKey, String, Text
+from datetime import datetime
+
+from sqlalchemy import JSON, DateTime, Float, ForeignKey, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -19,6 +21,9 @@ class Stance(Base):
     raw_text: Mapped[str] = mapped_column(Text)
     normalized_text: Mapped[str] = mapped_column(String(500), index=True)
     topic_id: Mapped[int | None] = mapped_column(ForeignKey("topics.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(String(20), default="complete")
+    out_of_scope_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class SubClaim(Base):
@@ -34,6 +39,8 @@ class Source(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     url: Mapped[str] = mapped_column(String(2048))
+    domain: Mapped[str] = mapped_column(String(255), default="")
+    first_seen_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Evidence(Base):
@@ -46,3 +53,5 @@ class Evidence(Base):
     summary: Mapped[str] = mapped_column(Text)
     credibility_score: Mapped[float] = mapped_column(Float, default=0.4)
     supporting_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
+    source_type: Mapped[str] = mapped_column(String(20), default="journalism")
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

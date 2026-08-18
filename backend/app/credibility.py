@@ -16,3 +16,15 @@ def score_source(url):
     if domain.endswith(".org"):
         return 0.6
     return 0.4
+
+
+def classify_source_type(url):
+    domain = urlparse(url).netloc.lower()
+
+    if domain.endswith(".gov"):
+        return "government"
+    if domain.endswith(".edu") or any(academic in domain for academic in ACADEMIC_DOMAINS):
+        return "academic"
+    if domain.endswith(".org"):
+        return "advocacy"
+    return "journalism"

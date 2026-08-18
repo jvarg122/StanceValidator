@@ -76,7 +76,14 @@ function App() {
 
       {error && <p className="error">{error}</p>}
 
-      {result && (
+      {result && result.status === 'out_of_scope' && (
+        <div className="digest">
+          <h2>{result.text}</h2>
+          <p className="out-of-scope">{result.out_of_scope_reason}</p>
+        </div>
+      )}
+
+      {result && result.status !== 'out_of_scope' && (
         <div className="digest">
           <h2>{result.text}</h2>
           {result.topic_name && <p className="topic-name">Topic: {result.topic_name}</p>}
