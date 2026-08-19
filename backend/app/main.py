@@ -1,7 +1,7 @@
 import logging
 from urllib.parse import urlparse
 
-from fastapi import Depends, FastAPI, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -257,6 +257,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
     return {
         "id": new_stance.id,
         "text": new_stance.raw_text,
+        "status": "complete",
         "topic_id": new_stance.topic_id,
         "topic_name": matched_topic.name if matched_topic else None,
         "sub_claims": result,
@@ -273,4 +274,6 @@ def get_stances(db: Session = Depends(get_db)):
 @app.get("/stances/{stance_id}")
 def get_stance(stance_id: int, db: Session = Depends(get_db)):
     stance = db.query(Stance).filter(Stance.id == stance_id).first()
+    if not stance:
+        raise HTTPException(status_code=404, detail="Stance not found")
     return build_digest(db, stance)

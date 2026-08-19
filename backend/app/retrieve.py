@@ -29,6 +29,10 @@ URL | supports or conflicts | one sentence summary | a short direct quote from t
         return []
 
     full_text = "".join(block.text for block in response.content if block.type == "text")
+    return parse_evidence_lines(full_text)
+
+
+def parse_evidence_lines(full_text):
     lines = full_text.strip().split("\n")
 
     results = []
