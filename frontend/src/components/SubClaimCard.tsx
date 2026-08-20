@@ -5,6 +5,9 @@ function SubClaimCard({ subClaim }: { subClaim: any }) {
       <p className={`strength strength-${subClaim.strength.replaceAll(' ', '-')}`}>
         {subClaim.strength}
         {subClaim.reused && <span className="reused-badge"> (reused from earlier research)</span>}
+        {subClaim.possibly_incomplete && (
+          <span className="reused-badge"> (search may be incomplete. one-sided evidence remained after the critique limit)</span>
+        )}
       </p>
       <ul className="evidence-list">
         {subClaim.evidence.map((e: any, j: number) => (

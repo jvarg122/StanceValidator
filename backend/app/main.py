@@ -192,6 +192,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                 db, new_stance.topic_id, sub_claim.text, exclude_stance_id=new_stance.id
             )
 
+        possibly_incomplete = False
         if similar:
             existing = db.query(Evidence).filter(Evidence.sub_claim_id == similar.id).all()
             found = [evidence_row_to_dict(db, e) for e in existing]
@@ -199,21 +200,22 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
             domains = matched_topic.trusted_domains
             found = find_evidence(sub_claim.text, domains) + search_semantic_scholar(sub_claim.text)
             iterations = 0
-            while (
-                needs_more_evidence(sub_claim.text, found)
-                and iterations < settings.max_critique_iterations
-            ):
+            still_thin = needs_more_evidence(sub_claim.text, found)
+            while still_thin and iterations < settings.max_critique_iterations:
                 more = find_evidence(sub_claim.text, domains) + search_semantic_scholar(sub_claim.text)
                 new_items = [item for item in more if item not in found]
                 if not new_items:
                     break
                 found = found + new_items
                 iterations += 1
+                still_thin = needs_more_evidence(sub_claim.text, found)
+            possibly_incomplete = still_thin
             logger.info(
-                "evidence for %r -> %d items after %d critique iterations",
+                "evidence for %r -> %d items after %d critique iterations (incomplete=%s)",
                 sub_claim.text[:50],
                 len(found),
                 iterations,
+                possibly_incomplete,
             )
 
         evidence_list = []
@@ -249,6 +251,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                 "evidence": evidence_list,
                 "strength": compute_strength(evidence_list),
                 "reused": similar is not None,
+                "possibly_incomplete": possibly_incomplete,
             }
         )
 
