@@ -28,17 +28,28 @@ URL | supports or conflicts | one sentence summary | a short direct quote from t
     except Exception:
         return []
 
+    real_urls = set()
+    for block in response.content:
+        if block.type == "web_search_tool_result":
+            for result in block.content:
+                url = getattr(result, "url", None)
+                if url:
+                    real_urls.add(url)
+
     full_text = "".join(block.text for block in response.content if block.type == "text")
-    return parse_evidence_lines(full_text)
+    return parse_evidence_lines(full_text, real_urls)
 
 
-def parse_evidence_lines(full_text):
+def parse_evidence_lines(full_text, real_urls=None):
     lines = full_text.strip().split("\n")
 
     results = []
     for line in lines:
         parts = [p.strip() for p in line.split("|", 3)]
         if len(parts) != 4 or not parts[3]:
+            continue
+
+        if real_urls is not None and parts[0] not in real_urls:
             continue
 
         relation_raw = parts[1].strip("* ").lower()

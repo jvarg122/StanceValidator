@@ -4,6 +4,7 @@ from pydantic import ValidationError
 
 from app.credibility import score_source
 from app.main import StanceIn, app, compute_overall_lean, compute_strength
+from app.retrieve import parse_evidence_lines
 from app.reuse import word_overlap
 
 client = TestClient(app)
@@ -78,3 +79,44 @@ def test_status_endpoint():
     response = client.get("/status")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
+
+
+def test_get_missing_stance_returns_404():
+    response = client.get("/stances/999999")
+    assert response.status_code == 404
+
+
+def test_parse_evidence_lines_normalizes_messy_relation():
+    text = "https://example.gov/report | **partially supports** | some summary | some quote"
+    results = parse_evidence_lines(text)
+    assert results[0]["relation"] == "supports"
+
+
+def test_parse_evidence_lines_conflicts():
+    text = "https://example.gov/report | conflicts | some summary | some quote"
+    results = parse_evidence_lines(text)
+    assert results[0]["relation"] == "conflicts"
+
+
+def test_parse_evidence_lines_drops_unrecognized_relation():
+    text = "https://example.gov/report | unrelated | some summary | some quote"
+    results = parse_evidence_lines(text)
+    assert results == []
+
+
+def test_parse_evidence_lines_drops_missing_quote():
+    text = "https://example.gov/report | supports | some summary | "
+    results = parse_evidence_lines(text)
+    assert results == []
+
+
+def test_parse_evidence_lines_drops_hallucinated_url():
+    text = "https://fake-source.example/report | supports | some summary | some quote"
+    results = parse_evidence_lines(text, real_urls={"https://example.gov/report"})
+    assert results == []
+
+
+def test_parse_evidence_lines_keeps_real_url():
+    text = "https://example.gov/report | supports | some summary | some quote"
+    results = parse_evidence_lines(text, real_urls={"https://example.gov/report"})
+    assert results[0]["url"] == "https://example.gov/report"
