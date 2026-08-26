@@ -15,7 +15,7 @@ Backend API: http://stance-tool-alb-279767071.us-west-2.elb.amazonaws.com/
 
 ## Architecture
 
-<img width="3401" height="1899" alt="StanceValidator_Architecture" src="https://github.com/user-attachments/assets/ab95d12f-6c0a-4518-bf4c-6707f96d1dfa" />
+![Image](https://i.imgur.com/7cOflbs.png)
 
 ## Project structure
 
