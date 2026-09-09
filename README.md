@@ -38,7 +38,21 @@ Backend API: http://stance-tool-alb-279767071.us-west-2.elb.amazonaws.com/
 | 14 | Build and return the response as JSON. |
 | 15 | End the workflow. |
 
+## Evidence Pipeline
 
+Submit a stance -> it's classified into one of 7 topics, decomposed into sub-claims, and
+each sub-claim gets researched via web search (scoped to that topic's curated trusted
+domains) and academic search (Semantic Scholar). A bounded critique loop conducts additional research if
+the evidence for a sub-claim looks biased or insufficient (the sub-claim is flagged as possibly incomplete).
+
+Each sub-claim gets a strength label (supported/disputed/mixed/insufficient evidence).
+Each piece of evidence also receives a credibility score and source type
+tag (e.g., government, academic, advocacy, journalism) based on its domain, along with a required supporting
+quote for grounding to determine the overall verdict for the stance.
+
+Each web citation is verified against the search results. Citations that cannot be matched to an actual search result are discarded, preventing unsupported or hallucinated sources from entering the evidence set.
+
+Reuse enabled across related stances. When a new sub-claim is similar enough to a previously researched sub-claim within the same topic the existing evidence set is reused instead of initiating a new research pass.
 
 ## Project structure
 
