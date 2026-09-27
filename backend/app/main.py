@@ -1,7 +1,6 @@
 import logging
 from urllib.parse import urlparse
-
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -15,6 +14,7 @@ from app.credibility import classify_source_type, score_source
 from app.critique import needs_more_evidence
 from app.db import get_db
 from app.decompose import decompose_claim
+from app.rag import ingest_document, judge_chunk, retrieve_relevant_chunks
 from app.models import Evidence, Source, Stance, SubClaim, Topic
 from app.retrieve import find_evidence
 from app.reuse import find_similar_subclaim
@@ -137,10 +137,8 @@ def get_topics(db: Session = Depends(get_db)):
     return [{"id": t.id, "name": t.name} for t in topics]
 
 
-@app.post("/stances")
-@limiter.limit(settings.rate_limit)
-def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
-    normalized = normalize_text(stance.text)
+def process_stance(db, text, uploaded_document=None):
+    normalized = normalize_text(text)
     duplicate = db.query(Stance).filter(Stance.normalized_text == normalized).first()
     if duplicate:
         logger.info("duplicate stance -> reusing stance %d", duplicate.id)
@@ -148,13 +146,13 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
 
     topics = db.query(Topic).all()
     topic_names = [t.name for t in topics]
-    raw_name = classify_topic(stance.text, topic_names)
+    raw_name = classify_topic(text, topic_names)
     matched_topic = match_topic(raw_name, topics)
     logger.info("classify_topic -> %r matched %s", raw_name, matched_topic.name if matched_topic else None)
 
     if not matched_topic:
         new_stance = Stance(
-            raw_text=stance.text,
+            raw_text=text,
             normalized_text=normalized,
             topic_id=None,
             status="out_of_scope",
@@ -170,7 +168,7 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
         return build_digest(db, new_stance)
 
     new_stance = Stance(
-        raw_text=stance.text,
+        raw_text=text,
         normalized_text=normalized,
         topic_id=matched_topic.id,
     )
@@ -178,9 +176,9 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
     db.commit()
     db.refresh(new_stance)
 
-    sub_claim_texts = decompose_claim(stance.text)
+    sub_claim_texts = decompose_claim(text)
     logger.info("decompose_claim -> %d sub-claims", len(sub_claim_texts))
-    sub_claims = [SubClaim(stance_id=new_stance.id, text=text) for text in sub_claim_texts]
+    sub_claims = [SubClaim(stance_id=new_stance.id, text=t) for t in sub_claim_texts]
     db.add_all(sub_claims)
     db.commit()
 
@@ -217,6 +215,14 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
                 iterations,
                 possibly_incomplete,
             )
+
+# doc uploads RAG
+        if uploaded_document:
+            relevant_chunks = retrieve_relevant_chunks(uploaded_document, sub_claim.text)
+            for chunk in relevant_chunks:
+                judged = judge_chunk(sub_claim.text, chunk.page_content, uploaded_document.filename)
+                if judged:
+                    found.append(judged)
 
         evidence_list = []
         for item in found:
@@ -266,6 +272,29 @@ def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_
         "sub_claims": result,
         "overall_lean": overall_lean,
     }
+
+
+@app.post("/stances")
+@limiter.limit(settings.rate_limit)
+def create_stance(request: Request, stance: StanceIn, db: Session = Depends(get_db)):
+    return process_stance(db, stance.text)
+
+
+@app.post("/stances/upload")
+@limiter.limit(settings.rate_limit)
+def create_stance_with_document(
+    request: Request,
+    text: str = Form(..., min_length=5, max_length=500),
+    file: UploadFile | None = File(None),
+    db: Session = Depends(get_db),
+):
+    uploaded_document = None
+    if file:
+        file_bytes = file.file.read()
+        uploaded_document = ingest_document(db, file_bytes, file.filename)
+        logger.info("ingested uploaded document %r -> id=%d", file.filename, uploaded_document.id)
+
+    return process_stance(db, text, uploaded_document=uploaded_document)
 
 
 @app.get("/stances")

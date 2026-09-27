@@ -59,3 +59,12 @@ class Evidence(Base):
     supporting_quote: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_type: Mapped[str] = mapped_column(String(20), default="journalism")
     retrieved_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)
+
+
+class UploadedDocument(Base):
+    __tablename__ = "uploaded_documents"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    filename: Mapped[str] = mapped_column(String(255))
+    collection_name: Mapped[str] = mapped_column(String(64))
+    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=utcnow)

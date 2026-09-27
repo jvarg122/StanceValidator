@@ -9,3 +9,12 @@ slowapi
 requests
 pytest
 httpx
+python-multipart
+langchain
+langchain-community
+langchain-text-splitters
+langchain-postgres
+langchain-huggingface
+pgvector
+sentence-transformers
+pypdf
