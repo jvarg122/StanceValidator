@@ -4,6 +4,7 @@ import './App.css'
 
 function App() {
   const [text, setText] = useState('')
+  const [file, setFile] = useState<File | null>(null)
   const [result, setResult] = useState<any>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -22,12 +23,17 @@ function App() {
     setError('')
     setResult(null)
 
+    const formData = new FormData()
+    formData.append('text', text)
+    if (file) {
+      formData.append('file', file)
+    }
+
     let res: Response
     try {
-      res = await fetch(`${import.meta.env.VITE_API_URL}/stances`, {
+      res = await fetch(`${import.meta.env.VITE_API_URL}/stances/upload`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text }),
+        body: formData,
       })
     } catch (err) {
       setError('Could not reach the server. Is the backend running?')
@@ -44,6 +50,7 @@ function App() {
     } else {
       const data = await res.json()
       setResult(data)
+      setFile(null)
     }
 
     setLoading(false)
@@ -73,6 +80,24 @@ function App() {
           {loading ? 'Working...' : 'Submit'}
         </button>
       </form>
+
+      <div className="file-attach">
+        <label htmlFor="source-upload">Upload your own source to use (optional, PDF)</label>
+        <input
+          id="source-upload"
+          type="file"
+          accept="application/pdf"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+        {file && (
+          <span className="file-name">
+            {file.name}{' '}
+            <button type="button" className="link-button" onClick={() => setFile(null)}>
+              ✕
+            </button>
+          </span>
+        )}
+      </div>
 
       {error && <p className="error">{error}</p>}
 

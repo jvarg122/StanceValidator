@@ -13,9 +13,13 @@ function SubClaimCard({ subClaim }: { subClaim: any }) {
         {subClaim.evidence.map((e: any, j: number) => (
           <li key={j} className={`evidence evidence-${e.relation}`}>
             <strong>{e.relation}</strong>: {e.summary}{' '}
-            <a href={e.url} target="_blank" rel="noreferrer">
-              source
-            </a>{' '}
+            {e.source_type === 'user_uploaded' ? (
+              <span className="uploaded-source">{e.url.replace('upload://', '')}</span>
+            ) : (
+              <a href={e.url} target="_blank" rel="noreferrer">
+                source
+              </a>
+            )}{' '}
             <span className="credibility" title="Credibility score">
               {Math.round(e.credibility_score * 100)}%
             </span>{' '}

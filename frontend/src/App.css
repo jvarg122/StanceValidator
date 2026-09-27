@@ -33,6 +33,20 @@
   cursor: default;
 }
 
+.file-attach {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.85;
+}
+
+.file-name {
+  font-style: italic;
+}
+
 .error {
   color: #c0392b;
 }
@@ -79,6 +93,22 @@
   font-size: 14px;
   font-weight: 600;
   text-transform: capitalize;
+}
+
+.strength-supported {
+  color: #155724;
+}
+
+.strength-disputed {
+  color: #c0392b;
+}
+
+.strength-mixed {
+  color: #7a4a03;
+}
+
+.strength-insufficient-evidence {
+  color: #555;
 }
 
 .evidence-list {
@@ -148,6 +178,16 @@
   border-radius: 3px;
   background: var(--border);
   opacity: 0.8;
+}
+
+.source-type-user_uploaded {
+  background: #fde2c8;
+}
+
+.uploaded-source {
+  font-size: 13px;
+  color: var(--text);
+  opacity: 0.85;
 }
 
 .link-button {
