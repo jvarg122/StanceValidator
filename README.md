@@ -126,3 +126,9 @@ Runs on `http://localhost:5173`.
 cd backend
 python -m pytest tests/
 ```
+
+## Note: 
+The initial set of topics and trusted sources are defined in ```seed_topics.py```. To add additional topics or sources update ```seed_topics.py``` and rerun:
+```
+python -m scripts.seed_topics
+```
